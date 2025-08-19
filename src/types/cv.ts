@@ -15,7 +15,7 @@ export interface CVRecord {
 export interface AirtableRecord {
   id: string;
   fields: {
-    [key: string]: any;
+    [key: string]: unknown;
     fldtime?: string;
     fldFirstName?: string;
     fldLastName?: string;

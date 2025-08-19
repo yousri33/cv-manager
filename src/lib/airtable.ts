@@ -24,16 +24,16 @@ export const transformAirtableRecord = (record: AirtableRecord): CVRecord => {
   
   return {
     id: record.id,
-    firstName: fields['First Name'] || '',
-    lastName: fields['Last Name'] || '',
-    email: fields['Email'] || '',
-    universities: fields['Univeristies '] || '',
-    resumeSummary: fields['doc_resume_summary'] || '',
-    detectedGaps: fields['detected_gaps_1'] || '',
-    interviewQuestions: fields['interview_questions'] || '',
-    holderSummary: fields['holder_summary'] || '',
-    cvUrl: fields['CV'] || '',
-    uploadDate: fields['Time'] || new Date().toISOString(),
+    firstName: (fields['First Name'] as string) || '',
+    lastName: (fields['Last Name'] as string) || '',
+    email: (fields['Email'] as string) || '',
+    universities: (fields['Univeristies '] as string) || '',
+    resumeSummary: (fields['doc_resume_summary'] as string) || '',
+    detectedGaps: (fields['detected_gaps_1'] as string) || '',
+    interviewQuestions: (fields['interview_questions'] as string) || '',
+    holderSummary: (fields['holder_summary'] as string) || '',
+    cvUrl: (fields['CV'] as string) || '',
+    uploadDate: (fields['Time'] as string) || new Date().toISOString(),
   };
 };
 
@@ -54,7 +54,7 @@ export const fetchCVRecords = async (params: CVSearchParams = {}) => {
                      'Time';
 
     // Build select options
-    const selectOptions: any = {
+    const selectOptions: Record<string, unknown> = {
       sort: [{ field: sortField, direction: sortDirection }],
       maxRecords: pageSize * page,
     };

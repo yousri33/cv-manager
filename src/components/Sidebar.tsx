@@ -9,7 +9,6 @@ import {
   Settings,
   Users,
   BarChart3,
-  Menu,
   X,
   Home,
   Bell,

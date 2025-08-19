@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Upload, FileText, X, CheckCircle, AlertCircle, Image, Camera } from 'lucide-react';
 import { UploadResponse } from '@/types/cv';
 import toast from 'react-hot-toast';
-import { playErrorSound, playSuccessSound, playUploadCompleteSound, playModalOpenSound, playModalCloseSound, playClickSound, playWarningSound, playLoadingSound, initializeNotificationSounds } from '@/utils/notificationSound';
+import { playErrorSound, playSuccessSound, playUploadCompleteSound, playClickSound, playLoadingSound, initializeNotificationSounds } from '@/utils/notificationSound';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { usePendingUpload } from '@/contexts/PendingUploadContext';
 
@@ -632,7 +632,7 @@ const CVUpload: React.FC<CVUploadProps> = ({ onSuccess, onClose, onUploadStart }
             </div>
             
             <p className="text-xs text-gray-500 text-center mt-4">
-              Position the CV document within the camera view and tap "Capture Photo"
+              Position the CV document within the camera view and tap &quot;Capture Photo&quot;
             </p>
           </div>
         </div>
