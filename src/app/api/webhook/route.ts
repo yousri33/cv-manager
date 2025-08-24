@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+// Adding minimal change to enable git push
 import { Notification } from '@/types/notification';
 
 // In-memory storage for webhook notifications
