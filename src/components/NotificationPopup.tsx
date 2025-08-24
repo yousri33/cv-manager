@@ -102,7 +102,7 @@ const NotificationPopup: React.FC = () => {
     }
   };
 
-  const getNotificationStyles = (type: 'success' | 'error' | 'warning' | 'info') => {
+  const getNotificationStyles = (type: Notification['type']) => {
     switch (type) {
       case 'success':
         return 'border-green-200 bg-gradient-to-r from-green-50 to-emerald-50';
@@ -110,6 +110,11 @@ const NotificationPopup: React.FC = () => {
         return 'border-red-200 bg-gradient-to-r from-red-50 to-pink-50';
       case 'warning':
         return 'border-yellow-200 bg-gradient-to-r from-yellow-50 to-orange-50';
+      case 'cv_analysis':
+        return 'border-purple-200 bg-gradient-to-r from-purple-50 to-violet-50';
+      case 'file_upload':
+      case 'system':
+      case 'info':
       default:
         return 'border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50';
     }

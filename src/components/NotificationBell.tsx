@@ -2,13 +2,23 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useNotifications } from '@/contexts/NotificationContext';
-import { Bell, X, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react';
+import { playNewNotificationSound } from '@/utils/notificationSound';
+import { Bell, X, CheckCircle, AlertCircle, AlertTriangle, Info, RefreshCw, User, FileText, Eye, EyeOff, Trash2 } from 'lucide-react';
 import { Notification } from '@/types/notification';
 import { cn } from '@/lib/utils';
-import { playClickSound, playNewNotificationSound, playSuccessSound, playWarningSound } from '@/utils/notificationSound';
 
 const NotificationBell: React.FC = () => {
-  const { notifications, unreadCount, markAsRead, markAllAsRead, clearAllNotifications } = useNotifications();
+  const { 
+    notifications, 
+    unreadCount, 
+    markAsRead, 
+    markAllAsRead, 
+    removeNotification, 
+    hideNotification,
+    clearAllNotifications, 
+    syncWebhookNotificationsNow 
+  } = useNotifications();
+  
   const [isOpen, setIsOpen] = useState(false);
   const [isShaking, setIsShaking] = useState(false);
   const prevUnreadCountRef = useRef(unreadCount);
@@ -25,35 +35,98 @@ const NotificationBell: React.FC = () => {
 
   const handleToggle = () => {
     setIsOpen(!isOpen);
-    playClickSound();
   };
 
   const handleMarkAsRead = (id: string) => {
     markAsRead(id);
-    playSuccessSound();
   };
 
   const handleMarkAllAsRead = () => {
     markAllAsRead();
-    playSuccessSound();
+  };
+
+  const handleHideNotification = (id: string) => {
+    hideNotification(id);
+  };
+
+  const handleRemoveNotification = (id: string) => {
+    removeNotification(id);
   };
 
   const handleClearAll = () => {
     clearAllNotifications();
-    playWarningSound();
   };
 
-  const getNotificationIcon = (type: Notification['type']) => {
+  const handleSync = async () => {
+    await syncWebhookNotificationsNow();
+  };
+
+  const getNotificationIcon = (type: Notification['type'], candidate?: string) => {
+    if (candidate) {
+      return (
+        <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+          <User className="w-4 h-4 text-white" />
+        </div>
+      );
+    }
+
     switch (type) {
+      case 'cv_analysis':
+        return (
+          <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
+            <FileText className="w-4 h-4 text-white" />
+          </div>
+        );
+      case 'file_upload':
+        return (
+          <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+            <CheckCircle className="w-4 h-4 text-white" />
+          </div>
+        );
+      case 'system':
+        return (
+          <div className="w-8 h-8 bg-gray-500 rounded-lg flex items-center justify-center">
+            <Info className="w-4 h-4 text-white" />
+          </div>
+        );
       case 'success':
-        return <CheckCircle className="w-4 h-4 text-green-600" />;
+        return (
+          <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+            <CheckCircle className="w-4 h-4 text-white" />
+          </div>
+        );
       case 'error':
-        return <AlertCircle className="w-4 h-4 text-red-600" />;
+        return (
+          <div className="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center">
+            <AlertCircle className="w-4 h-4 text-white" />
+          </div>
+        );
       case 'warning':
-        return <AlertTriangle className="w-4 h-4 text-yellow-600" />;
+        return (
+          <div className="w-8 h-8 bg-yellow-500 rounded-lg flex items-center justify-center">
+            <AlertTriangle className="w-4 h-4 text-white" />
+          </div>
+        );
       case 'info':
       default:
-        return <Info className="w-4 h-4 text-blue-600" />;
+        return (
+          <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+            <Info className="w-4 h-4 text-white" />
+          </div>
+        );
+    }
+  };
+
+  const getPriorityColor = (priority: Notification['priority']) => {
+    switch (priority) {
+      case 'high':
+        return 'border-l-red-500 bg-red-50';
+      case 'medium':
+        return 'border-l-blue-500 bg-blue-50';
+      case 'low':
+        return 'border-l-gray-400 bg-gray-50';
+      default:
+        return 'border-l-gray-400 bg-gray-50';
     }
   };
 
@@ -73,12 +146,15 @@ const NotificationBell: React.FC = () => {
       {/* Bell Button */}
       <button
         onClick={handleToggle}
-        className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200"
+        className={cn(
+          "relative p-3 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-all duration-200",
+          isShaking && "animate-bounce"
+        )}
         aria-label={`Notifications (${unreadCount} unread)`}
       >
-        <Bell className={cn("w-6 h-6 transition-transform duration-150", isShaking && "animate-bell-shake")} />
+        <Bell className="w-6 h-6" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+          <span className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center transform translate-x-1/3 -translate-y-1/3">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
@@ -87,47 +163,55 @@ const NotificationBell: React.FC = () => {
       {/* Dropdown Panel */}
       {isOpen && (
         <>
-          {/* Backdrop for mobile */}
+          {/* Backdrop */}
           <div 
-            className="fixed inset-0 z-40 md:hidden"
-            onClick={() => {
-              setIsOpen(false);
-              playClickSound();
-            }}
+            className="fixed inset-0 z-40"
+            onClick={() => setIsOpen(false)}
           />
           
-          <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-xl border border-gray-200 z-50 animate-in slide-in-from-top-2 duration-200">
+          <div className="absolute right-0 top-full mt-2 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-xl border border-gray-200 z-50">
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-100">
-              <h3 className="font-semibold text-gray-900">
-                Notifications {unreadCount > 0 && `(${unreadCount})`}
-              </h3>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
+                <Bell className="w-6 h-6 text-gray-700" />
+                <h3 className="font-semibold text-lg text-gray-900">
+                  Notifications
+                </h3>
+                {unreadCount > 0 && (
+                  <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
+                    {unreadCount}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
                 {notifications.length > 0 && (
                   <>
                     {unreadCount > 0 && (
                       <button
                         onClick={handleMarkAllAsRead}
-                        className="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200"
+                        className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 rounded hover:bg-blue-50 transition-colors"
                       >
                         Mark all read
                       </button>
                     )}
                     <button
                       onClick={handleClearAll}
-                      className="text-sm text-red-600 hover:text-red-800 font-medium transition-colors duration-200"
+                      className="text-xs text-red-600 hover:text-red-800 font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors"
                     >
                       Clear all
                     </button>
                   </>
                 )}
                 <button
-                  onClick={() => {
-                    setIsOpen(false);
-                    playClickSound();
-                  }}
-                  className="p-1 hover:bg-gray-100 rounded transition-colors duration-200"
-                  aria-label="Close notifications"
+                  onClick={handleSync}
+                  className="p-1.5 hover:bg-gray-100 rounded text-gray-600 hover:text-gray-800 transition-colors"
+                  title="Sync notifications"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="p-1.5 hover:bg-gray-100 rounded text-gray-600 hover:text-gray-800 transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -135,65 +219,80 @@ const NotificationBell: React.FC = () => {
             </div>
 
             {/* Notifications List */}
-            <div className="max-h-96 overflow-y-auto">
+            <div className="max-h-80 overflow-y-auto">
               {notifications.length === 0 ? (
-                <div className="p-8 text-center text-gray-500">
-                  <Bell className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                  <p className="text-sm">No notifications yet</p>
+                <div className="p-12 text-center text-gray-500">
+                  <Bell className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-base">No notifications</p>
                 </div>
               ) : (
-                notifications.slice(0, 10).map((notification) => (
+                notifications.slice(0, 8).map((notification) => (
                   <div
                     key={notification.id}
                     className={cn(
-                      "p-4 border-b border-gray-100 last:border-b-0 transition-all duration-300 hover:bg-gray-50 hover:shadow-sm cursor-pointer group",
-                      !notification.read && "bg-gradient-to-r from-blue-50 to-indigo-50",
-                      notification.type === 'success' && "border-green-200 bg-gradient-to-r from-green-50 to-emerald-50",
-                      notification.type === 'error' && "border-red-200 bg-gradient-to-r from-red-50 to-pink-50"
+                      "p-3 border-l-4 transition-all duration-200 hover:shadow-sm",
+                      getPriorityColor(notification.priority),
+                      !notification.read && "bg-white border-l-blue-500 shadow-sm"
                     )}
                   >
                     <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 mt-0.5">
-                        <div className={cn(
-                          "p-1.5 rounded-full",
-                          notification.type === 'success' && "bg-green-100",
-                          notification.type === 'error' && "bg-red-100",
-                          notification.type === 'warning' && "bg-yellow-100",
-                          (notification.type === 'info' || !notification.type) && "bg-blue-100"
-                        )}>
-                          {getNotificationIcon(notification.type)}
-                        </div>
+                      <div className="flex-shrink-0">
+                        {getNotificationIcon(notification.type, notification.candidate)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start justify-between gap-2 mb-1">
                           <h4 className={cn(
-                            "font-semibold text-sm mb-1 group-hover:text-gray-700 transition-colors",
-                            notification.read ? "text-gray-700" : "text-gray-900"
+                            "text-sm font-medium truncate",
+                            notification.read ? "text-gray-600" : "text-gray-900"
                           )}>
                             {notification.title}
                           </h4>
                           {!notification.read && (
-                            <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1" />
+                            <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1.5" />
                           )}
                         </div>
-                        <p className={cn(
-                          "text-xs mb-2 line-clamp-2 leading-relaxed",
-                          notification.read ? "text-gray-500" : "text-gray-600"
-                        )}>
+                        <p className="text-xs text-gray-600 mb-2 line-clamp-2">
                           {notification.message}
                         </p>
+                        {notification.candidate && (
+                          <div className="flex items-center gap-1 mb-2">
+                            <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                            <span className="text-xs text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">
+                              {notification.candidate}
+                            </span>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-gray-500 font-medium bg-gray-100 px-2 py-0.5 rounded-full">
+                          <span className="text-xs text-gray-500">
                             {formatTimestamp(notification.timestamp)}
                           </span>
-                          {!notification.read && (
+                          <div className="flex items-center gap-1">
+                            {!notification.read && (
+                              <button
+                                onClick={() => handleMarkAsRead(notification.id)}
+                                className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
+                                title="Mark as read"
+                              >
+                                <Eye className="w-3 h-3" />
+                              </button>
+                            )}
+                            {notification.canHide && (
+                              <button
+                                onClick={() => handleHideNotification(notification.id)}
+                                className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                                title="Hide notification"
+                              >
+                                <EyeOff className="w-3 h-3" />
+                              </button>
+                            )}
                             <button
-                              onClick={() => handleMarkAsRead(notification.id)}
-                              className="text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200"
+                              onClick={() => handleRemoveNotification(notification.id)}
+                              className="text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-100 transition-colors"
+                              title="Remove notification"
                             >
-                              Mark as read
+                              <Trash2 className="w-3 h-3" />
                             </button>
-                          )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -201,10 +300,10 @@ const NotificationBell: React.FC = () => {
                 ))
               )}
               
-              {notifications.length > 10 && (
+              {notifications.length > 8 && (
                 <div className="p-3 text-center bg-gray-50 border-t border-gray-100">
-                  <span className="text-sm text-gray-600">
-                    +{notifications.length - 10} more notifications
+                  <span className="text-xs text-gray-600">
+                    +{notifications.length - 8} more notifications
                   </span>
                 </div>
               )}

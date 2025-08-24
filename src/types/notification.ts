@@ -2,12 +2,13 @@ export interface Notification {
   id: string;
   title: string;
   message: string;
-  type: 'success' | 'error' | 'warning' | 'info';
+  type: 'cv_analysis' | 'file_upload' | 'system' | 'success' | 'error' | 'warning' | 'info';
+  priority: 'low' | 'medium' | 'high';
   timestamp: number;
   read: boolean;
-  persistent?: boolean; // Whether to persist in localStorage
-  autoClose?: boolean; // Whether to auto-close after timeout
-  duration?: number; // Duration in milliseconds before auto-close
+  candidate?: string; // Candidate name for CV analysis notifications
+  canHide?: boolean; // Whether this notification can be hidden/removed
+  persistent?: boolean; // Whether this notification should be persisted in localStorage
 }
 
 export interface NotificationState {
@@ -22,6 +23,9 @@ export interface NotificationContextType {
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
   removeNotification: (id: string) => void;
+  hideNotification: (id: string) => void;
   clearAllNotifications: () => void;
   getUnreadNotifications: () => Notification[];
+  syncWebhookNotificationsNow: () => Promise<void>;
+  triggerUploadNotificationSync: () => Promise<() => void>;
 }

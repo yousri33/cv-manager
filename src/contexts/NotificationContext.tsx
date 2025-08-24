@@ -2,15 +2,15 @@
 
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
 import { Notification, NotificationState, NotificationContextType } from '@/types/notification';
-import { notificationStorage } from '@/lib/notificationStorage';
 
 type NotificationAction =
-  | { type: 'LOAD_NOTIFICATIONS'; payload: Notification[] }
   | { type: 'ADD_NOTIFICATION'; payload: Notification }
   | { type: 'MARK_AS_READ'; payload: string }
   | { type: 'MARK_ALL_AS_READ' }
   | { type: 'REMOVE_NOTIFICATION'; payload: string }
-  | { type: 'CLEAR_ALL' };
+  | { type: 'HIDE_NOTIFICATION'; payload: string }
+  | { type: 'CLEAR_ALL' }
+  | { type: 'SYNC_WEBHOOK_NOTIFICATIONS'; payload: Notification[] };
 
 const initialState: NotificationState = {
   notifications: [],
@@ -19,13 +19,6 @@ const initialState: NotificationState = {
 
 const notificationReducer = (state: NotificationState, action: NotificationAction): NotificationState => {
   switch (action.type) {
-    case 'LOAD_NOTIFICATIONS': {
-      const notifications = action.payload;
-      return {
-        notifications,
-        unreadCount: notifications.filter(n => !n.read).length,
-      };
-    }
     case 'ADD_NOTIFICATION': {
       const notifications = [action.payload, ...state.notifications];
       return {
@@ -56,10 +49,45 @@ const notificationReducer = (state: NotificationState, action: NotificationActio
         unreadCount: notifications.filter(n => !n.read).length,
       };
     }
+    case 'HIDE_NOTIFICATION': {
+      const notifications = state.notifications.filter(n => n.id !== action.payload);
+      return {
+        notifications,
+        unreadCount: notifications.filter(n => !n.read).length,
+      };
+    }
     case 'CLEAR_ALL': {
       return {
         notifications: [],
         unreadCount: 0,
+      };
+    }
+    case 'SYNC_WEBHOOK_NOTIFICATIONS': {
+      const webhookNotifications = action.payload;
+      const existingIds = new Set(state.notifications.map(n => n.id));
+      
+      const newNotifications = webhookNotifications
+        .filter(webhookNotif => !existingIds.has(webhookNotif.id))
+        .map(webhookNotif => ({
+          id: webhookNotif.id,
+          title: webhookNotif.title,
+          message: webhookNotif.message,
+          type: webhookNotif.type || 'cv_analysis',
+          priority: webhookNotif.priority || 'medium',
+          timestamp: webhookNotif.timestamp,
+          read: false,
+          candidate: webhookNotif.candidate,
+          canHide: true,
+        }));
+      
+      if (newNotifications.length === 0) {
+        return state;
+      }
+      
+      const notifications = [...newNotifications, ...state.notifications];
+      return {
+        notifications,
+        unreadCount: notifications.filter(n => !n.read).length,
       };
     }
     default:
@@ -76,24 +104,24 @@ interface NotificationProviderProps {
 export const NotificationProvider: React.FC<NotificationProviderProps> = ({ children }) => {
   const [state, dispatch] = useReducer(notificationReducer, initialState);
 
-  // Load notifications from localStorage on mount
+  // Sync with webhook notifications periodically
   useEffect(() => {
-    const loadStoredNotifications = () => {
-      const storedNotifications = notificationStorage.loadNotifications();
-      if (storedNotifications.length > 0) {
-        dispatch({ type: 'LOAD_NOTIFICATIONS', payload: storedNotifications });
+    const syncInterval = setInterval(async () => {
+      try {
+        const response = await fetch('/api/webhook');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.notifications && Array.isArray(data.notifications)) {
+            dispatch({ type: 'SYNC_WEBHOOK_NOTIFICATIONS', payload: data.notifications });
+          }
+        }
+      } catch (error) {
+        console.error('Error syncing webhook notifications:', error);
       }
-    };
+    }, 5000); // Check every 5 seconds
 
-    loadStoredNotifications();
+    return () => clearInterval(syncInterval);
   }, []);
-
-  // Save notifications to localStorage whenever state changes
-  useEffect(() => {
-    if (state.notifications.length > 0) {
-      notificationStorage.saveNotifications(state.notifications);
-    }
-  }, [state.notifications]);
 
   const addNotification = (notificationData: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
     const notification: Notification = {
@@ -101,58 +129,76 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       id: `notification_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       timestamp: Date.now(),
       read: false,
-      persistent: notificationData.persistent !== false, // Default to true
-      autoClose: notificationData.autoClose !== false, // Default to true
-      duration: notificationData.duration || 5000, // Default 5 seconds
+      priority: notificationData.priority || 'medium',
+      canHide: notificationData.canHide !== false,
     };
 
     dispatch({ type: 'ADD_NOTIFICATION', payload: notification });
-    
-    // Reset the notification popup closed flag when new notifications arrive
-    // This allows the popup to show for new notifications after previous ones were dismissed
-    localStorage.removeItem('notificationPopupClosed');
-
-    // Auto-remove notification after duration if autoClose is enabled
-    if (notification.autoClose) {
-      setTimeout(() => {
-        dispatch({ type: 'REMOVE_NOTIFICATION', payload: notification.id });
-      }, notification.duration);
-    }
   };
 
   const markAsRead = (id: string) => {
     dispatch({ type: 'MARK_AS_READ', payload: id });
-    notificationStorage.markAsRead(id);
   };
 
   const markAllAsRead = () => {
     dispatch({ type: 'MARK_ALL_AS_READ' });
-    notificationStorage.markAllAsRead();
   };
 
   const removeNotification = (id: string) => {
     dispatch({ type: 'REMOVE_NOTIFICATION', payload: id });
-    notificationStorage.removeNotification(id);
+  };
+
+  const hideNotification = (id: string) => {
+    dispatch({ type: 'HIDE_NOTIFICATION', payload: id });
   };
 
   const clearAllNotifications = () => {
     dispatch({ type: 'CLEAR_ALL' });
-    notificationStorage.clearNotifications();
   };
 
   const getUnreadNotifications = () => {
     return state.notifications.filter(n => !n.read);
   };
 
+  const syncWebhookNotificationsNow = async () => {
+    try {
+      const response = await fetch('/api/webhook');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.notifications && Array.isArray(data.notifications)) {
+          dispatch({ type: 'SYNC_WEBHOOK_NOTIFICATIONS', payload: data.notifications });
+        }
+      }
+    } catch (error) {
+      console.error('Error syncing webhook notifications:', error);
+    }
+  };
+
+  const triggerUploadNotificationSync = async () => {
+    // Immediate sync when upload starts
+    await syncWebhookNotificationsNow();
+    
+    // Set up enhanced polling for webhook responses during upload
+    const uploadSyncInterval = setInterval(async () => {
+      await syncWebhookNotificationsNow();
+    }, 2000); // Check every 2 seconds during upload
+    
+    // Return cleanup function
+    return () => clearInterval(uploadSyncInterval);
+  };
+
   const value: NotificationContextType = {
     notifications: state.notifications,
-    unreadCount: state.unreadCount,
+    unreadCount: state.notifications.filter(n => !n.read).length,
     addNotification,
     markAsRead,
     markAllAsRead,
     removeNotification,
+    hideNotification,
     clearAllNotifications,
     getUnreadNotifications,
+    syncWebhookNotificationsNow,
+    triggerUploadNotificationSync,
   };
 
   return (
